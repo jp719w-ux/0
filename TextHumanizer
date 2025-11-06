@@ -1,0 +1,192 @@
+/* TextHumanizer.jsx - main app (same as previous, uses userEmail prop) */
+import React, { useState, useEffect } from 'react';
+import { PenTool, Sparkles, Clock } from 'lucide-react';
+
+export default function TextHumanizer({ userEmail, onLogout }){
+  const [texto, setTexto] = useState('');
+  const [reescrito, setReescrito] = useState('');
+  const [pontuacao, setPontuacao] = useState(null);
+  const [analise, setAnalise] = useState([]);
+  const [nivel, setNivel] = useState(0.5);
+  const [carregando, setCarregando] = useState(false);
+  const [tempoRestante, setTempoRestante] = useState(180); // 3 minutes
+  const [premium, setPremium] = useState(false);
+  const [verificando, setVerificando] = useState(false);
+
+  const OWNER_EMAIL = 'admin@gmail.com';
+
+  useEffect(()=>{
+    if(userEmail && userEmail.toLowerCase() === OWNER_EMAIL) {
+      setPremium(true);
+    }
+  }, [userEmail]);
+
+  useEffect(()=>{
+    if(!premium && tempoRestante > 0){
+      const t = setInterval(()=> setTempoRestante(prev => prev - 1), 1000);
+      return ()=> clearInterval(t);
+    }
+  }, [premium, tempoRestante]);
+
+  async function verificarPagamento(){
+    setVerificando(true);
+    try{
+      const resp = await fetch(`/api/verificar-pagamento?email=${encodeURIComponent(userEmail||'')}`);
+      const data = await resp.json();
+      if(data.premium) {
+        setPremium(true);
+        alert('Pagamento confirmado! Premium ativado.');
+      } else {
+        alert('Pagamento ainda não confirmado.');
+      }
+    }catch(e){ alert('Erro ao verificar pagamento'); }
+    setVerificando(false);
+  }
+
+  function analisarTexto(t) {
+    if(!t.trim()) return { score:0, notes:['Texto vazio.'] };
+    const palavras = t.match(/\b\w+\b/g) || [];
+    const frases = t.split(/[.!?]+/).map(s=>s.trim()).filter(Boolean);
+    const mediaFrases = palavras.length / Math.max(1, frases.length);
+    let diversidade = new Set(palavras.map(p=>p.toLowerCase())).size / Math.max(1, palavras.length);
+    let perguntas = (t.match(/\?/g)||[]).length;
+    let excl = (t.match(/!/g)||[]).length;
+    let formal = (t.match(/\b(portanto|entretanto|todavia|contudo|destarte|dessa forma)\b/gi)||[]).length;
+    let raw = (0.35*diversidade)+(0.25*(1-Math.abs(mediaFrases-14)/20))+(0.15*Math.min(1,(perguntas+excl)/3))-(0.2*(formal/5));
+    raw = Math.max(0, Math.min(1, raw));
+    const notas = [];
+    if(formal>0) notas.push(`Foram encontradas ${formal} expressões formais — tente simplificar.`);
+    if(diversidade<0.4) notas.push('Pouca variação de vocabulário.');
+    if(mediaFrases>22) notas.push('As frases estão longas — divida para tornar o texto mais fluido.');
+    if(perguntas===0) notas.push('Nenhuma pergunta — perguntas retóricas tornam o texto mais envolvente.');
+    return { score: Math.round(raw*100), notes: notas };
+  }
+
+  function humanizarTexto(t, nivel=0.5){
+    if(!t) return '';
+    let textoLocal = t;
+    if(nivel>0.3){
+      textoLocal = textoLocal.replace(/\b(portanto|entretanto|todavia|contudo|destarte)\b/gi, 'então');
+      textoLocal = textoLocal.replace(/\b(dessa forma|assim sendo)\b/gi, 'por isso');
+    }
+    if(nivel>0.6){
+      textoLocal = textoLocal.replace(/\b(utilizar|empregar)\b/gi, 'usar');
+      textoLocal = textoLocal.replace(/\b(fazer uso de)\b/gi, 'usar');
+    }
+    if(Math.random() < nivel*0.4) textoLocal += ' Você já pensou sobre isso?';
+    textoLocal = textoLocal.replace(/\s+([.,!?;:])/g,'$1');
+    textoLocal = textoLocal.replace(/\s{2,}/g,' ');
+    return textoLocal.trim();
+  }
+
+  function processar(){
+    if(!premium && tempoRestante <= 0){
+      alert('Seu tempo gratuito acabou! Adquira o plano premium para continuar.');
+      return;
+    }
+    setCarregando(true);
+    setPontuacao(null);
+    setAnalise([]);
+    setReescrito('');
+    const a = analisarTexto(texto);
+    const r = humanizarTexto(texto, nivel);
+    setPontuacao(a.score);
+    setAnalise(a.notes);
+    setReescrito(r);
+    setCarregando(false);
+  }
+
+  function mensagem(p){
+    if(p>=85) return 'Altíssima chance de ser bem recebido!';
+    if(p>=70) return 'Boa chance de agradar ao leitor.';
+    if(p>=50) return 'Mediano — pode ser aprimorado.';
+    return 'Baixa probabilidade de ser bem avaliado.';
+  }
+
+  function formatarTempo(s){ const min = Math.floor(s/60); const sec = s%60; return `${min}:${String(sec).padStart(2,'0')}`; }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-white p-8 flex justify-center">
+      <div className="max-w-4xl w-full bg-white shadow-xl rounded-3xl p-8 border border-gray-100">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="bg-indigo-100 p-3 rounded-2xl shadow-sm">
+              <PenTool className="text-indigo-600 w-7 h-7" />
+            </div>
+            <h1 className="text-3xl font-extrabold text-indigo-700 tracking-tight flex items-center gap-2">
+              TextHumanizer <span className="text-gray-800">Brasil</span>
+              <Sparkles className="text-yellow-400 w-6 h-6 animate-pulse" />
+            </h1>
+            <div style={{marginLeft:12, color:'#374151'}}>Bem-vindo, {userEmail} 👋</div>
+          </div>
+
+          <div className="flex items-center gap-2 text-sm bg-indigo-50 px-3 py-1 rounded-xl">
+            <Clock className="w-4 h-4 text-indigo-600" />
+            {premium ? (
+              <span className="text-indigo-700 font-semibold">Premium ativo</span>
+            ) : (
+                <span className="text-indigo-700 font-semibold">Tempo grátis: {formatarTempo(tempoRestante)}</span>
+            )}
+            <button onClick={onLogout} style={{marginLeft:12, background:'#efefef', borderRadius:8, padding:'6px 8px'}}>Sair</button>
+          </div>
+        </div>
+
+        {!premium && tempoRestante <= 0 && (
+          <div className="bg-yellow-100 text-yellow-800 border border-yellow-300 p-4 rounded-xl mb-6 text-center">
+            <p className="mb-3">Seu tempo gratuito acabou. Adquira o acesso premium para continuar usando sem limites.</p>
+            <div className="flex justify-center gap-3">
+              <button onClick={()=> window.open('https://pay.kiwify.com.br/n41yYUB','_blank')} className="bg-yellow-500 hover:bg-yellow-600 text-white px-5 py-2 rounded-xl font-semibold shadow-md transition">
+                Comprar Premium – R$9,90
+              </button>
+              <button onClick={verificarPagamento} disabled={verificando} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-medium transition disabled:opacity-50">
+                {verificando ? 'Verificando...' : 'Verificar Pagamento'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        <p className="text-gray-600 mb-6">Cole seu texto abaixo e veja como ele pode ser transformado em algo mais humano, natural e envolvente.</p>
+
+        <textarea value={texto} onChange={e=>setTexto(e.target.value)} placeholder="Cole aqui o texto limpo..." rows={8} className="w-full border rounded-xl p-4 mb-4 focus:ring focus:ring-indigo-200 focus:outline-none" />
+
+        <div className="flex flex-col md:flex-row items-center gap-4 mb-4">
+          <div className="flex-1 w-full">
+            <label className="text-sm block mb-1">Nível de humanização: {(nivel*100).toFixed(0)}%</label>
+            <input type="range" min={0} max={1} step={0.05} value={nivel} onChange={e=>setNivel(parseFloat(e.target.value))} className="w-full accent-indigo-600" />
+          </div>
+          <button onClick={processar} disabled={!premium && tempoRestante<=0} className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2 rounded-xl shadow-md transition disabled:opacity-50">
+            {carregando ? 'Processando...' : 'Analisar e Reescrever'}
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="md:col-span-2">
+            <h2 className="font-semibold text-lg mb-2 text-indigo-700">Texto Reescrito</h2>
+            <div className="bg-gray-50 border rounded-xl p-4 min-h-[150px] whitespace-pre-wrap">
+              {reescrito || <span className="text-gray-400">O texto reescrito aparecerá aqui...</span>}
+            </div>
+          </div>
+
+          <div>
+            <h2 className="font-semibold text-lg mb-2 text-indigo-700">Avaliação</h2>
+            {pontuacao===null ? (
+              <p className="text-gray-500">Nenhuma análise feita ainda.</p>
+            ) : (
+              <div className="border rounded-xl p-4 bg-gray-50">
+                <div className="text-4xl font-bold text-indigo-700">{pontuacao}%</div>
+                <p className="text-gray-700 mt-1">{mensagem(pontuacao)}</p>
+                {analise.length>0 && (
+                  <ul className="mt-3 list-disc list-inside text-sm text-gray-600">
+                    {analise.map((n,i)=><li key={i}>{n}</li>)}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <footer className="mt-6 text-center text-xs text-gray-500">Feito com 💜 por <strong>TextHumanizer Brasil</strong> — tornando textos mais humanos e agradáveis.</footer>
+      </div>
+    </div>
+  );
+}
