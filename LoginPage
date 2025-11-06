@@ -1,0 +1,42 @@
+import React, { useState } from 'react';
+import { PenTool } from 'lucide-react';
+
+export default function LoginPage({ onLogin }){
+  const OWNER_EMAIL = 'admin@gmail.com';
+  const OWNER_PASS = 'joao151025';
+
+  const [email, setEmail] = useState(OWNER_EMAIL);
+  const [password, setPassword] = useState(OWNER_PASS);
+  const [error, setError] = useState('');
+
+  function handleSubmit(e){
+    e.preventDefault();
+    if(!email || !password){
+      setError('Preencha e-mail e senha');
+      return;
+    }
+    const token = btoa(email + ':' + password);
+    onLogin(email, token);
+  }
+
+  return (
+    <div style={{minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center'}}>
+      <div style={{width: '420px', borderRadius: 16, padding:24, boxShadow:'0 10px 30px rgba(16,24,40,0.06)', background:'#fff'}}>
+        <div style={{display:'flex', alignItems:'center', gap:12, marginBottom:16}}>
+          <div style={{background:'#eef2ff', padding:10, borderRadius:12}}><PenTool style={{width:28,height:28,color:'#4f46e5'}} /></div>
+          <h1 style={{margin:0, fontSize:20, color:'#3730a3'}}>TextHumanizer <span style={{color:'#111827'}}>Brasil</span></h1>
+        </div>
+        <p style={{color:'#6b7280', marginTop:0}}>Acesso gratuito por 3 minutos — Dono tem acesso ilimitado (silencioso).</p>
+        <form onSubmit={handleSubmit} style={{marginTop:12}}>
+          <label style={{display:'block', fontSize:13, color:'#374151'}}>E-mail</label>
+          <input value={email} onChange={e=>setEmail(e.target.value)} style={{width:'100%', padding:12, marginTop:6, borderRadius:10, border:'1px solid #e5e7eb'}} />
+          <label style={{display:'block', fontSize:13, color:'#374151', marginTop:12}}>Senha</label>
+          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} style={{width:'100%', padding:12, marginTop:6, borderRadius:10, border:'1px solid #e5e7eb'}} />
+          {error && <div style={{color:'red', marginTop:10}}>{error}</div>}
+          <button type="submit" style={{width:'100%', marginTop:16, padding:12, background:'#4f46e5', color:'#fff', borderRadius:10, fontWeight:600}}>Entrar no TextHumanizer</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
